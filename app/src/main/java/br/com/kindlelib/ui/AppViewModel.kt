@@ -62,7 +62,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val screen = MutableStateFlow<Screen>(
         if (store.loadSettings().extraFolders.isEmpty()) Screen.Onboarding else Screen.Library
     )
-    val shownBook = MutableStateFlow<Book?>(null)
     val message = MutableStateFlow<String?>(null)
 
     init {
@@ -72,7 +71,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---------------- navegação ----------------
 
     fun openBook(id: String) {
-        shownBook.value = books.value.firstOrNull { it.id == id }
         screen.value = Screen.Detail(id)
     }
     fun closeDetail() { screen.value = Screen.Library }

@@ -50,13 +50,17 @@ import br.com.kindlelib.model.ReadingStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailScreen(vm: AppViewModel) {
-    val book by vm.shownBook.collectAsState()
+fun DetailScreen(vm: AppViewModel, bookId: String) {
+    val books by vm.books.collectAsState()
+    val book = remember(books, bookId) { books.firstOrNull { it.id == bookId } }
     if (book == null) {
-        LaunchedEffect(Unit) { vm.closeDetail() }
+        LaunchedEffect(Unit) {
+            vm.message.value = "Não encontrei esse livro na biblioteca (pode ter sido removido ou a pasta ficou indisponível)"
+            vm.closeDetail()
+        }
         return
     }
-    val b = book!!
+    val b = book
     var title by remember(b.id) { mutableStateOf(b.title) }
     var author by remember(b.id) { mutableStateOf(b.author) }
     var genre by remember(b.id) { mutableStateOf(b.genre) }

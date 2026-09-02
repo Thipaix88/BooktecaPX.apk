@@ -108,7 +108,7 @@ private fun AppRoot(vm: AppViewModel) {
         when (val s = screen) {
             is Screen.Onboarding -> OnboardingScreen(vm)
             is Screen.Library -> LibraryScreen(vm)
-            is Screen.Detail -> DetailScreen(vm)
+            is Screen.Detail -> DetailScreen(vm, s.id)
             is Screen.Kindle -> KindleScreen(vm)
             is Screen.Settings -> SettingsScreen(vm)
         }
