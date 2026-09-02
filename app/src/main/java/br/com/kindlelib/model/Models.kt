@@ -1,8 +1,13 @@
 package br.com.kindlelib.model
 
+import android.content.Context
 import android.net.Uri
+import java.io.File
+import java.io.InputStream
 
-enum class BookFormat { EPUB, MOBI, AZW3, PDF, FB2, TXT, CBZ, CBR, OTHER }
+enum class BookFormat { EPUB, MOBI, AZW3, PDF, FB2, TXT, CBZ, CBR, OTHER;
+    companion object
+}
 
 enum class ReadingStatus(val label: String) { NAO_LIDO("Não lido"), LENDO("Lendo"), LIDO("Lido") }
 
@@ -33,6 +38,16 @@ data class Book(
 ) {
     fun sourceKey(): String = if (sourceUri.startsWith("content://")) sourceUri else sourcePath
     fun displaySize(): String = if (fileSize <= 0) "" else formatSize(fileSize)
+
+    /** Abre o arquivo do livro para leitura, seja via SAF (content://) ou caminho direto em disco. */
+    fun open(context: Context): InputStream? = runCatching {
+        if (sourceUri.startsWith("content://")) {
+            context.contentResolver.openInputStream(Uri.parse(sourceUri))
+        } else {
+            val f = File(sourcePath)
+            if (f.exists()) f.inputStream() else null
+        }
+    }.getOrNull()
 }
 
 fun formatSize(bytes: Long): String {

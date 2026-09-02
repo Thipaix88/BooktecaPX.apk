@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -35,8 +36,8 @@ class MainActivity : ComponentActivity() {
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_USB_DEVICE_ATTACHED -> vmRef?.onUsbEvent(true)
-                Intent.ACTION_USB_DEVICE_DETACHED -> vmRef?.onUsbEvent(false)
+                UsbManager.ACTION_USB_DEVICE_ATTACHED -> vmRef?.onUsbEvent(true)
+                UsbManager.ACTION_USB_DEVICE_DETACHED -> vmRef?.onUsbEvent(false)
                 Intent.ACTION_MEDIA_MOUNTED -> vmRef?.onUsbEvent(true)
                 Intent.ACTION_MEDIA_UNMOUNTED, Intent.ACTION_MEDIA_EJECT -> vmRef?.onUsbEvent(false)
             }
@@ -57,8 +58,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         val f = IntentFilter().apply {
-            addAction(Intent.ACTION_USB_DEVICE_ATTACHED)
-            addAction(Intent.ACTION_USB_DEVICE_DETACHED)
+            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
             addAction(Intent.ACTION_MEDIA_MOUNTED)
             addAction(Intent.ACTION_MEDIA_UNMOUNTED)
             addAction(Intent.ACTION_MEDIA_EJECT)

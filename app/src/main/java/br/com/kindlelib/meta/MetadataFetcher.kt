@@ -67,8 +67,13 @@ class MetadataFetcher(private val context: Context) {
             val author = URLEncoder.encode(book.author.take(60), "UTF-8")
             val url = "https://openlibrary.org/search.json?title=$title&author=$author&limit=3&fields=title,author_name,cover_i,first_publish_year"
             val json = getJson(url) ?: return null
-            val docs = json.optJSONObject("docs") ?: json.optJSONArray("docs") ?: return null
-            val first = if (docs is JSONObject) docs else if (docs.length() > 0) docs.getJSONObject(0) else return null
+            val docsArray = json.optJSONArray("docs")
+            val docsObject = json.optJSONObject("docs")
+            val first: JSONObject = when {
+                docsArray != null && docsArray.length() > 0 -> docsArray.getJSONObject(0)
+                docsObject != null -> docsObject
+                else -> return null
+            }
             val meta = ParsedMeta()
             meta.title = first.optString("title").trim()
             first.optJSONArray("author_name")?.takeIf { it.length() > 0 }?.let { meta.author = it.getString(0) }
