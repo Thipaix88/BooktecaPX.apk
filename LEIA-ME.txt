@@ -1,0 +1,57 @@
+============================================================
+ KindleLib — Gerenciador de biblioteca de e-books offline
+ (inspirado no Calibre, otimizado para Kindle via cabo USB)
+============================================================
+
+REQUISITOS PARA COMPILAR O APK
+- JDK 17 ou 21 (OpenJDK)
+- Android SDK com: platform android-34, build-tools 34.0.0
+- Gradle 8.7 (ou use o gradle do Android Studio)
+
+COMO GERAR O APK (OPÇÃO A — Android Studio)
+1. Abra o Android Studio e escolha "Open" selecionando a pasta deste projeto.
+2. Aguarde a sincronização do Gradle (ele baixa as dependências).
+3. Menu Build -> Build APK(s) -> Build APK.
+4. O APK sai em: app/build/outputs/apk/debug/app-debug.apk
+
+COMO GERAR O APK (OPÇÃO B — linha de comando)
+  export ANDROID_HOME=/caminho/do/android-sdk
+  export JAVA_HOME=/caminho/do/jdk17
+  gradle assembleDebug
+  # APK em app/build/outputs/apk/debug/app-debug.apk
+  # (se apontar sdk.dir inválido, crie local.properties com:
+  #   sdk.dir=/caminho/do/android-sdk)
+
+INSTALAÇÃO NO CELULAR
+- Copie o .apk para o celular (cabo, Drive, Telegram).
+- Toque no arquivo e permita "Instalar apps de fontes desconhecidas".
+- Android 11+: ao abrir o app, conceda "Todos os arquivos"
+  (o app abre as Configurações sozinho) OU adicione pastas pelo seletor.
+
+FUNCIONALIDADES IMPLEMENTADAS
+- Biblioteca local: escaneia Downloads + pastas adicionadas (SAF);
+  formatos EPUB, MOBI, AZW3, PDF, FB2, TXT, CBZ/CBR.
+- Grade de capas, busca, filtros (status/format/coleção/autor), ordenação.
+- Coleções, tags e status de leitura (não lido / lendo / lido).
+- Metadados e capas: Google Books + Open Library (opcional, online);
+  edição manual de todos os campos e capa pela galeria.
+- Detecção de USB (best-effort) e transferência para o Kindle pela
+  pasta "documents" via seletor do sistema (SAF) — caminho oficial
+  do Android para dispositivos MTP como o Kindle.
+- Exclusão de livros direto do Kindle, normalização de EPUB
+  (reembalagem no padrão exigido pelo Kindle) e abertura do arquivo.
+
+LIMITAÇÕES TÉCNICAS (importante)
+1. MTP/USB: o Android NAO permite que apps manipulem diretamente o
+   protocolo MTP de dispositivos USB (o Kindle aparece como MTP, nao
+   como disco). Por isso o acesso usa o seletor de pastas do sistema
+   (Storage Access Framework) — funciona com cabo OTG e e o caminho
+   oficial, nao ha alternativa embutida via USB Host.
+2. Conversão EPUB->MOBI: NAO esta embutida (exigiria um conversor
+   completo como o Calibre). Kindles de 10a geracao+ leem EPUB
+   nativamente; para modelos antigos use "Normalizar EPUB".
+3. DRM (livros comprados na Amazon): capa/metadados podem nao ser
+   legiveis; a transferencia e possivel, mas o Kindle pode recusar abrir.
+4. A loja bloqueada nao e um problema: a transferencia por cabo nao
+   usa Wi-Fi nem contas Amazon.
+============================================================
