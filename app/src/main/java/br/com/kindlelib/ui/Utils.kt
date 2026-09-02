@@ -28,6 +28,8 @@ import androidx.core.content.ContextCompat
 import br.com.kindlelib.model.Book
 import br.com.kindlelib.model.BookFormat
 import android.Manifest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 fun hasStorageAccess(context: Context): Boolean {
     return when {
@@ -41,7 +43,17 @@ fun hasStorageAccess(context: Context): Boolean {
 fun CoverImage(book: Book, modifier: Modifier = Modifier, corner: Dp = 6.dp) {
     val bmp by produceState<ImageBitmap?>(initialValue = null, book.coverPath, book.id) {
         value = book.coverPath?.let { p ->
-            runCatching { android.graphics.BitmapFactory.decodeFile(p)?.asImageBitmap() }.getOrNull()
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeFile(p, opts)
+                    var sample = 1
+                    val target = 480
+                    while ((opts.outWidth / sample) > target || (opts.outHeight / sample) > target) sample *= 2
+                    val opts2 = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+                    android.graphics.BitmapFactory.decodeFile(p, opts2)?.asImageBitmap()
+                }.getOrNull()
+            }
         }
     }
     Box(

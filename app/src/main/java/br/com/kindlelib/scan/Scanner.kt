@@ -71,6 +71,7 @@ class Scanner(private val context: Context) {
                     if (prev != null) {
                         prev.fileSize = f.length()
                         prev.modifiedAt = f.lastModified()
+                        if (prev.coverPath == null) enrich(prev)
                     } else {
                         val b = Book(
                             id = UUID.randomUUID().toString(),
@@ -107,6 +108,7 @@ class Scanner(private val context: Context) {
                     if (prev != null) {
                         prev.fileSize = doc.length()
                         prev.modifiedAt = doc.lastModified()
+                        if (prev.coverPath == null) enrich(prev)
                     } else {
                         val b = Book(
                             id = UUID.randomUUID().toString(),
@@ -139,11 +141,23 @@ class Scanner(private val context: Context) {
             if (m.description.isNotBlank()) b.synopsis = m.description
             if (m.genre.isNotBlank()) b.genre = m.genre
             b.hasDrm = m.hasDrm
-            if (m.coverBytes != null && b.coverPath == null) {
-                val f = File(coversDir, "cover_${b.id}.jpg")
-                f.writeBytes(m.coverBytes!!)
-                b.coverPath = f.absolutePath
-            }
+            saveCoverIfAny(b, m.coverBytes)
+        }
+    }
+
+    /** Tenta só a capa de novo (não mexe em título/autor/sinopse etc, que podem ter sido editados a mão). */
+    private fun retryCover(b: Book) {
+        runCatching {
+            val m = Parsers.parse(b, context, wantCover = true)
+            saveCoverIfAny(b, m.coverBytes)
+        }
+    }
+
+    private fun saveCoverIfAny(b: Book, coverBytes: ByteArray?) {
+        if (coverBytes != null && b.coverPath == null) {
+            val f = File(coversDir, "cover_${b.id}.jpg")
+            f.writeBytes(coverBytes)
+            b.coverPath = f.absolutePath
         }
     }
 

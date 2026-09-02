@@ -171,6 +171,28 @@ fun SettingsScreen(vm: AppViewModel) {
             }
 
             Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Diagnóstico", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    val crashFile = remember { java.io.File(context.filesDir, "crash_log.txt") }
+                    var crashText by remember { mutableStateOf<String?>(null) }
+                    Text(
+                        "Se o app fechar sozinho em algum momento, toque abaixo para ver o motivo exato e copiar.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    OutlinedButton(onClick = {
+                        crashText = if (crashFile.exists()) crashFile.readText() else "Nenhum erro registrado ainda."
+                    }) { Text("Ver último erro registrado") }
+                    crashText?.let { txt ->
+                        Text(
+                            txt,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.fillMaxWidth().padding(8.dp)
+                        )
+                    }
+                }
+            }
+
+            Card(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))

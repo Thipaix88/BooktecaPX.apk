@@ -51,7 +51,7 @@ import br.com.kindlelib.model.ReadingStatus
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(vm: AppViewModel) {
-    val book by vm.shownBook.collectAsState(initial = null)
+    val book by vm.shownBook.collectAsState()
     if (book == null) {
         LaunchedEffect(Unit) { vm.closeDetail() }
         return

@@ -81,6 +81,8 @@ class LibraryStore(private val context: Context) {
         put("collection", b.collection)
         put("metadataFetched", b.metadataFetched)
         put("hasDrm", b.hasDrm)
+        put("genre", b.genre)
+        put("transferred", b.transferred)
     }
 
     private fun bookFromJson(o: JSONObject): Book = Book(
@@ -105,7 +107,9 @@ class LibraryStore(private val context: Context) {
             .getOrDefault(emptyList()),
         collection = o.optString("collection"),
         metadataFetched = o.optBoolean("metadataFetched"),
-        hasDrm = o.optBoolean("hasDrm")
+        hasDrm = o.optBoolean("hasDrm"),
+        genre = o.optString("genre"),
+        transferred = o.optBoolean("transferred")
     )
 
     companion object {

@@ -47,6 +47,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            runCatching {
+                val f = java.io.File(filesDir, "crash_log.txt")
+                val sw = java.io.StringWriter()
+                throwable.printStackTrace(java.io.PrintWriter(sw))
+                f.writeText("${java.util.Date()}\n$sw")
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
         setContent {
             KindleLibTheme {
                 val vm: AppViewModel = viewModel()
