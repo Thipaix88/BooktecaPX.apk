@@ -32,7 +32,16 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+        id: build
+        continue-on-error: true
+        run: gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build_output.log
+
+      - name: Show real error if build failed
+        if: steps.build.outcome == 'failure'
+        run: |
+          MSG=$(tail -c 3500 build_output.log | perl -pe 's/\n/%0A/g' | perl -pe 's/\r/%0D/g')
+          echo "::error::$MSG"
+          exit 1
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
