@@ -10,6 +10,7 @@ import br.com.kindlelib.model.Book
 import br.com.kindlelib.model.BookFormat
 import br.com.kindlelib.parser.Parsers
 import br.com.kindlelib.parser.cleanTitle
+import br.com.kindlelib.parser.fromExt
 import br.com.kindlelib.parser.isSupportedExt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
