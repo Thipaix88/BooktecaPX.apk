@@ -26,6 +26,7 @@ data class Book(
     var modifiedAt: Long = 0L,
     var coverPath: String? = null,
     var synopsis: String = "",
+    var genre: String = "",
     var series: String = "",
     var seriesIndex: String = "",
     var publisher: String = "",
@@ -34,7 +35,8 @@ data class Book(
     var tags: List<String> = emptyList(),
     var collection: String = "",
     var metadataFetched: Boolean = false,
-    var hasDrm: Boolean = false
+    var hasDrm: Boolean = false,
+    var transferred: Boolean = false
 ) {
     fun sourceKey(): String = if (sourceUri.startsWith("content://")) sourceUri else sourcePath
     fun displaySize(): String = if (fileSize <= 0) "" else formatSize(fileSize)
@@ -83,6 +85,7 @@ data class ParsedMeta(
     var language: String = "",
     var publisher: String = "",
     var description: String = "",
+    var genre: String = "",
     var series: String = "",
     var seriesIndex: String = "",
     var coverBytes: ByteArray? = null,
@@ -93,6 +96,7 @@ data class ParsedMeta(
 )
 
 sealed class Screen {
+    object Onboarding : Screen()
     object Library : Screen()
     data class Detail(val id: String) : Screen()
     object Kindle : Screen()

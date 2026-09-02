@@ -30,6 +30,7 @@ class MetadataFetcher(private val context: Context) {
                 if (best.coverBytes == null) best.coverBytes = ol.coverBytes
                 if (best.description.isBlank()) best.description = ol.description
                 if (best.series.isBlank()) best.series = ol.series
+                if (best.genre.isBlank()) best.genre = ol.genre
             }
         }
         best
@@ -50,6 +51,7 @@ class MetadataFetcher(private val context: Context) {
             meta.description = v.optString("description").substringBefore("\n\n").take(1200)
             meta.publisher = v.optString("publisher")
             meta.language = v.optString("language")
+            v.optJSONArray("categories")?.takeIf { it.length() > 0 }?.let { meta.genre = it.getString(0) }
             v.optJSONObject("seriesInfo")?.let { si ->
                 meta.series = si.optString("shortSeriesList").ifBlank { si.optString("bookDisplayName") }
             }

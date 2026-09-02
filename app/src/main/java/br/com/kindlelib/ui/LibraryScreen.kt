@@ -12,12 +12,16 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
@@ -34,7 +38,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -49,7 +52,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import br.com.kindlelib.model.Book
 import br.com.kindlelib.model.BookFormat
-import br.com.kindlelib.model.ReadingStatus
 import br.com.kindlelib.model.SortBy
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -57,19 +59,29 @@ import br.com.kindlelib.model.SortBy
 fun LibraryScreen(vm: AppViewModel) {
     val books by vm.books.collectAsState(initial = emptyList())
     val query by vm.query.collectAsState(initial = "")
-    val collections by vm.collections.collectAsState(initial = emptyList())
     val scanning by vm.scanning.collectAsState(initial = false)
-    val visible = remember(books, query, vm.authorFilter.value, vm.formatFilter.value, vm.statusFilter.value, vm.collectionFilter.value, vm.sortBy.value) {
+    val selected by vm.selectedIds.collectAsState(initial = emptySet())
+
+    // filtros coletados como State — é isso que faz o Compose recompor na hora que eles mudam
+    val authorF by vm.authorFilter.collectAsState(initial = null)
+    val formatF by vm.formatFilter.collectAsState(initial = null)
+    val transferredF by vm.transferredFilter.collectAsState(initial = null)
+    val sort by vm.sortBy.collectAsState(initial = SortBy.RECENTES)
+
+    val visible = remember(books, query, authorF, formatF, transferredF, sort) {
         vm.filteredBooks()
     }
     var searching by remember { mutableStateOf(false) }
+    val selecting = selected.isNotEmpty()
+    var actionsMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    if (searching) {
-                        OutlinedTextField(
+                    when {
+                        selecting -> Text("${selected.size} selecionado(s)", fontWeight = FontWeight.Bold)
+                        searching -> OutlinedTextField(
                             value = query,
                             onValueChange = vm::setQuery,
                             placeholder = { Text("Buscar título, autor, série, tag...") },
@@ -82,27 +94,42 @@ fun LibraryScreen(vm: AppViewModel) {
                                 }
                             }
                         )
-                    } else {
-                        Column {
+                        else -> Column {
                             Text("Biblioteca", fontWeight = FontWeight.Bold)
                             Text("${books.size} livros", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 },
+                navigationIcon = {
+                    if (selecting) IconButton(vm::clearSelection) { Icon(Icons.Default.Close, "Cancelar seleção") }
+                },
                 actions = {
-                    IconButton({ searching = !searching }) { Icon(Icons.Default.Search, "Buscar") }
-                    IconButton(vm::openSettings) { Icon(Icons.Default.Settings, "Configurações") }
+                    if (selecting) {
+                        Box {
+                            IconButton({ actionsMenu = true }) { Icon(Icons.Default.MoreVert, "Ações") }
+                            DropdownMenu(actionsMenu, { actionsMenu = false }) {
+                                DropdownMenuItem(text = { Text("Transferir para o Kindle") }, onClick = { actionsMenu = false; vm.bulkSendToKindle() })
+                                DropdownMenuItem(text = { Text("Marcar como transferido") }, onClick = { actionsMenu = false; vm.bulkMarkTransferred() })
+                                DropdownMenuItem(text = { Text("Remover da biblioteca") }, onClick = { actionsMenu = false; vm.bulkDelete() })
+                            }
+                        }
+                    } else {
+                        IconButton({ searching = !searching }) { Icon(Icons.Default.Search, "Buscar") }
+                        IconButton(vm::openSettings) { Icon(Icons.Default.Settings, "Configurações") }
+                    }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = vm::openKindle) {
-                Icon(Icons.Default.Send, "Enviar para o Kindle")
+            if (!selecting) {
+                FloatingActionButton(onClick = vm::openKindle) {
+                    Icon(Icons.Default.Send, "Enviar para o Kindle")
+                }
             }
         }
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            if (!searching) FilterRow(vm)
+            if (!searching && !selecting) FilterRow(vm)
             if (scanning) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (visible.isEmpty()) {
                 EmptyState(scanning, books.isEmpty())
@@ -114,10 +141,15 @@ fun LibraryScreen(vm: AppViewModel) {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(visible, key = { it.id }) { book ->
-                        BookCard(book, onClick = { vm.openBook(book.id) },
-                            onStatus = { s -> vm.setStatus(book, s) },
-                            onSend = { vm.message.value = "Abra a aba Kindle para enviar \"${book.title}\"" },
-                            onDelete = { vm.deleteBook(book) })
+                        BookCard(
+                            book = book,
+                            selecting = selecting,
+                            isSelected = book.id in selected,
+                            onClick = {
+                                if (selecting) vm.toggleSelect(book.id) else vm.openBook(book.id)
+                            },
+                            onLongClick = { vm.startSelection(book.id) }
+                        )
                     }
                 }
             }
@@ -131,7 +163,7 @@ private fun EmptyState(scanning: Boolean, noBooks: Boolean) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (scanning) CircularProgressIndicator()
             Text(
-                text = if (noBooks && !scanning) "Nenhum livro encontrado ainda.\nBaixe e-books (EPUB/MOBI) para a pasta Downloads\ne toque em atualizar, ou adicione uma pasta em Configurações."
+                text = if (noBooks && !scanning) "Nenhum livro encontrado ainda.\nVerifique se a pasta escolhida tem e-books (EPUB/MOBI),\nou toque em \"Escanear novamente\" em Configurações."
                 else "Procurando livros...",
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(24.dp)
@@ -144,15 +176,12 @@ private fun EmptyState(scanning: Boolean, noBooks: Boolean) {
 private fun FilterRow(vm: AppViewModel) {
     val authorF by vm.authorFilter.collectAsState(initial = null)
     val formatF by vm.formatFilter.collectAsState(initial = null)
-    val statusF by vm.statusFilter.collectAsState(initial = null)
-    val collF by vm.collectionFilter.collectAsState(initial = "")
+    val transferredF by vm.transferredFilter.collectAsState(initial = null)
     val sort by vm.sortBy.collectAsState(initial = SortBy.RECENTES)
     val books by vm.books.collectAsState(initial = emptyList())
-    val collections by vm.collections.collectAsState(initial = emptyList())
     val authors = remember(books) { books.map { it.author }.filter { it.isNotBlank() }.distinct().sortedBy { it.lowercase() }.take(40) }
 
     var mFormat by remember { mutableStateOf(false) }
-    var mColl by remember { mutableStateOf(false) }
     var mSort by remember { mutableStateOf(false) }
     var mAuthor by remember { mutableStateOf(false) }
 
@@ -160,26 +189,16 @@ private fun FilterRow(vm: AppViewModel) {
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        FilterChip(selected = statusF == null, onClick = { vm.setStatusFilter(null) }, label = { Text("Todos") })
-        ReadingStatus.entries.forEach { s ->
-            FilterChip(selected = statusF == s, onClick = { vm.setStatusFilter(if (statusF == s) null else s) }, label = { Text(s.label) })
-        }
+        FilterChip(selected = transferredF == null, onClick = { vm.setTransferredFilter(null) }, label = { Text("Todos") })
+        FilterChip(selected = transferredF == false, onClick = { vm.setTransferredFilter(if (transferredF == false) null else false) }, label = { Text("Novos") })
+        FilterChip(selected = transferredF == true, onClick = { vm.setTransferredFilter(if (transferredF == true) null else true) }, label = { Text("Transferidos") })
 
         Box {
-            FilterChip(selected = formatF != null, onClick = { mFormat = true }, label = { Text(formatF?.label() ?: "Formato") })
+            FilterChip(selected = formatF != null, onClick = { mFormat = true }, label = { Text(formatF?.label() ?: "Tipo") })
             DropdownMenu(mFormat, { mFormat = false }) {
                 DropdownMenuItem(text = { Text("Todos") }, onClick = { vm.setFormatFilter(null); mFormat = false })
                 BookFormat.entries.forEach { f ->
                     DropdownMenuItem(text = { Text(f.label()) }, onClick = { vm.setFormatFilter(f); mFormat = false })
-                }
-            }
-        }
-        Box {
-            FilterChip(selected = collF.isNotEmpty(), onClick = { mColl = true }, label = { Text(collF.ifEmpty { "Coleção" }) })
-            DropdownMenu(mColl, { mColl = false }) {
-                DropdownMenuItem(text = { Text("Todas") }, onClick = { vm.setCollectionFilter(""); mColl = false })
-                collections.forEach { c ->
-                    DropdownMenuItem(text = { Text("${c.name} (${c.count})") }, onClick = { vm.setCollectionFilter(c.name); mColl = false })
                 }
             }
         }
@@ -207,18 +226,30 @@ private fun FilterRow(vm: AppViewModel) {
 @Composable
 private fun BookCard(
     book: Book,
+    selecting: Boolean,
+    isSelected: Boolean,
     onClick: () -> Unit,
-    onStatus: (ReadingStatus) -> Unit,
-    onSend: () -> Unit,
-    onDelete: () -> Unit
+    onLongClick: () -> Unit
 ) {
-    var menu by remember { mutableStateOf(false) }
     Column(
         Modifier
-            .combinedClickable(onClick = onClick, onLongClick = { menu = true })
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { if (!selecting) onLongClick() }
+            )
             .padding(2.dp)
     ) {
-        CoverImage(book, Modifier.fillMaxWidth().aspectRatio(0.72f))
+        Box {
+            CoverImage(book, Modifier.fillMaxWidth().aspectRatio(0.72f))
+            if (selecting) {
+                Icon(
+                    imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                    contentDescription = null,
+                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.padding(4.dp).size(22.dp)
+                )
+            }
+        }
         Text(
             book.title,
             style = MaterialTheme.typography.bodySmall,
@@ -238,28 +269,8 @@ private fun BookCard(
             Text(book.format.label(), style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary)
             Text("•", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(statusDot(book.status), style = MaterialTheme.typography.labelSmall, color = statusColor(book.status))
-        }
-        DropdownMenu(menu, { menu = false }) {
-            DropdownMenuItem(text = { Text("Marcar: não lido") }, onClick = { onStatus(ReadingStatus.NAO_LIDO); menu = false })
-            DropdownMenuItem(text = { Text("Marcar: lendo") }, onClick = { onStatus(ReadingStatus.LENDO); menu = false })
-            DropdownMenuItem(text = { Text("Marcar: lido") }, onClick = { onStatus(ReadingStatus.LIDO); menu = false })
-            DropdownMenuItem(text = { Text("Enviar para o Kindle") }, onClick = { onSend(); menu = false })
-            DropdownMenuItem(text = { Text("Detalhes e edição") }, onClick = { onClick(); menu = false })
-            DropdownMenuItem(text = { Text("Remover da biblioteca") }, onClick = { onDelete(); menu = false })
+            Text(if (book.transferred) "transferido" else "novo", style = MaterialTheme.typography.labelSmall,
+                color = if (book.transferred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
-}
-
-private fun statusDot(s: ReadingStatus): String = when (s) {
-    ReadingStatus.NAO_LIDO -> "não lido"
-    ReadingStatus.LENDO -> "lendo"
-    ReadingStatus.LIDO -> "lido"
-}
-
-@androidx.compose.runtime.Composable
-private fun statusColor(s: ReadingStatus): androidx.compose.ui.graphics.Color = when (s) {
-    ReadingStatus.NAO_LIDO -> MaterialTheme.colorScheme.onSurfaceVariant
-    ReadingStatus.LENDO -> MaterialTheme.colorScheme.secondary
-    ReadingStatus.LIDO -> MaterialTheme.colorScheme.primary
 }

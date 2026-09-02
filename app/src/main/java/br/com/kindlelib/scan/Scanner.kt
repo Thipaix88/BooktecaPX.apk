@@ -2,8 +2,6 @@ package br.com.kindlelib.scan
 
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
-import android.provider.MediaStore
 import androidx.documentfile.provider.DocumentFile
 import br.com.kindlelib.model.AppSettings
 import br.com.kindlelib.model.Book
@@ -17,30 +15,29 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
+/**
+ * Escaneia SOMENTE as pastas que o usuário escolheu explicitamente
+ * (settings.extraFolders) + a pasta interna da biblioteca (livros normalizados).
+ * Não varre o armazenamento inteiro do aparelho — isso é intencional.
+ */
 class Scanner(private val context: Context) {
 
     private val coversDir = File(context.filesDir, "covers").apply { mkdirs() }
     private val MAX_BOOKS = 4000
-    private val MAX_DEPTH = 5
+    private val MAX_DEPTH = 6
 
     suspend fun scan(settings: AppSettings, existing: List<Book>): List<Book> = withContext(Dispatchers.IO) {
         val out = LinkedHashMap<String, Book>()
         existing.forEach { out[it.sourceKey()] = it }
 
-        // 1) Pastas acessíveis por caminho (Downloads + pastas adicionadas por caminho)
-        val pathRoots = mutableListOf<File>()
-        val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        if (downloads.exists()) pathRoots += downloads
+        // 1) Pastas escolhidas pelo usuário, acessíveis por caminho direto
         settings.extraFolders.filter { !it.ref.startsWith("content://") }.forEach { ref ->
+            if (out.size >= MAX_BOOKS) return@forEach
             val f = File(ref.ref)
-            if (f.exists()) pathRoots += f
-        }
-        for (root in pathRoots) {
-            if (out.size >= MAX_BOOKS) break
-            walkFile(root, out, 0)
+            if (f.exists()) walkFile(f, out, 0)
         }
 
-        // 2) Pastas SAF (content://) caso o acesso por caminho esteja limitado
+        // 2) Pastas escolhidas pelo usuário via seletor do sistema (SAF)
         settings.extraFolders.filter { it.ref.startsWith("content://") }.forEach { ref ->
             if (out.size >= MAX_BOOKS) return@forEach
             runCatching {
@@ -49,10 +46,7 @@ class Scanner(private val context: Context) {
             }
         }
 
-        // 3) MediaStore (API 29+) — complementa livros em Downloads não vistos por caminho
-        queryMediaStore(out)
-
-        // 4) Pasta da própria biblioteca (importados)
+        // 3) Pasta interna da biblioteca (ex: EPUBs normalizados)
         File(context.filesDir, "library").takeIf { it.exists() }?.let { root ->
             if (out.size < MAX_BOOKS) walkFile(root, out, 0)
         }
@@ -98,7 +92,7 @@ class Scanner(private val context: Context) {
     }
 
     private fun walkTree(dir: DocumentFile, out: MutableMap<String, Book>, depth: Int) {
-        if (depth > 4 || out.size >= MAX_BOOKS) return
+        if (depth > MAX_DEPTH || out.size >= MAX_BOOKS) return
         val children = dir.listFiles().sortedBy { it.name?.lowercase() ?: "" }
         children.forEach { doc ->
             if (out.size >= MAX_BOOKS) return
@@ -133,51 +127,6 @@ class Scanner(private val context: Context) {
         }
     }
 
-    private fun queryMediaStore(out: MutableMap<String, Book>) {
-        if (android.os.Build.VERSION.SDK_INT < 29) return
-        runCatching {
-            val projection = arrayOf(
-                MediaStore.Files.FileColumns.DISPLAY_NAME,
-                MediaStore.Files.FileColumns.DATA,
-                MediaStore.Files.FileColumns.SIZE,
-                MediaStore.Files.FileColumns.DATE_MODIFIED
-            )
-            context.contentResolver.query(
-                MediaStore.Files.getContentUri("external"),
-                projection,
-                null, null, null
-            )?.use { c ->
-                val iName = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-                val iData = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
-                val iSize = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                val iMod = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
-                while (c.moveToNext()) {
-                    if (out.size >= MAX_BOOKS) break
-                    val name = c.getString(iName) ?: continue
-                    val ext = name.substringAfterLast('.', "").lowercase()
-                    if (!isSupportedExt(ext)) continue
-                    val data = c.getString(iData) ?: continue
-                    val f = File(data)
-                    if (!f.exists()) continue
-                    if (out.containsKey(f.absolutePath)) continue
-                    val b = Book(
-                        id = UUID.randomUUID().toString(),
-                        title = cleanTitle(name),
-                        author = "",
-                        format = BookFormat.fromExt(ext),
-                        fileName = name,
-                        sourcePath = f.absolutePath,
-                        sourceUri = "",
-                        fileSize = c.getLong(iSize),
-                        modifiedAt = c.getLong(iMod) * 1000L
-                    )
-                    enrich(b)
-                    out[f.absolutePath] = b
-                }
-            }
-        }
-    }
-
     private fun enrich(b: Book) {
         runCatching {
             val m = Parsers.parse(b, context, wantCover = true)
@@ -188,6 +137,7 @@ class Scanner(private val context: Context) {
             if (m.publisher.isNotBlank()) b.publisher = m.publisher
             if (m.language.isNotBlank()) b.language = m.language
             if (m.description.isNotBlank()) b.synopsis = m.description
+            if (m.genre.isNotBlank()) b.genre = m.genre
             b.hasDrm = m.hasDrm
             if (m.coverBytes != null && b.coverPath == null) {
                 val f = File(coversDir, "cover_${b.id}.jpg")

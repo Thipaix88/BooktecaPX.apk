@@ -26,6 +26,7 @@ import br.com.kindlelib.ui.AppViewModel
 import br.com.kindlelib.ui.DetailScreen
 import br.com.kindlelib.ui.KindleScreen
 import br.com.kindlelib.ui.LibraryScreen
+import br.com.kindlelib.ui.OnboardingScreen
 import br.com.kindlelib.ui.SettingsScreen
 import br.com.kindlelib.ui.theme.KindleLibTheme
 
@@ -95,6 +96,7 @@ private fun AppRoot(vm: AppViewModel) {
 
     Box(Modifier.fillMaxSize()) {
         when (val s = screen) {
+            is Screen.Onboarding -> OnboardingScreen(vm)
             is Screen.Library -> LibraryScreen(vm)
             is Screen.Detail -> DetailScreen(vm)
             is Screen.Kindle -> KindleScreen(vm)

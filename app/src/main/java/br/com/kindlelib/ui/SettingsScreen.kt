@@ -79,7 +79,7 @@ fun SettingsScreen(vm: AppViewModel) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Armazenamento", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text(
-                        if (accessOk) "Acesso ao armazenamento concedido – o app escaneia a pasta Downloads e pastas adicionadas."
+                        if (accessOk) "Acesso ao armazenamento concedido — o app escaneia apenas as pastas adicionadas abaixo."
                         else "Sem acesso ao armazenamento. Toque no botão abaixo para conceder, ou adicione pastas pelo seletor (funciona sempre).",
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -109,7 +109,9 @@ fun SettingsScreen(vm: AppViewModel) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Pastas da biblioteca", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text("• Downloads (automático)", style = MaterialTheme.typography.bodySmall)
+                    if (settings.extraFolders.isEmpty()) {
+                        Text("Nenhuma pasta adicionada ainda.", style = MaterialTheme.typography.bodySmall)
+                    }
                     settings.extraFolders.forEach { f ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text("• ${f.name}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))

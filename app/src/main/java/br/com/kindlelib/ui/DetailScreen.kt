@@ -2,7 +2,9 @@ package br.com.kindlelib.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -57,6 +59,7 @@ fun DetailScreen(vm: AppViewModel) {
     val b = book!!
     var title by remember(b.id) { mutableStateOf(b.title) }
     var author by remember(b.id) { mutableStateOf(b.author) }
+    var genre by remember(b.id) { mutableStateOf(b.genre) }
     var series by remember(b.id) { mutableStateOf(b.series) }
     var seriesIndex by remember(b.id) { mutableStateOf(b.seriesIndex) }
     var publisher by remember(b.id) { mutableStateOf(b.publisher) }
@@ -66,11 +69,12 @@ fun DetailScreen(vm: AppViewModel) {
     var tags by remember(b.id) { mutableStateOf(b.tags.joinToString(", ")) }
     val metaBusy by vm.metaBusy.collectAsState(initial = false)
 
-    LaunchedEffect(title, author, series, seriesIndex, publisher, language, synopsis, collection, tags) {
+    LaunchedEffect(title, author, genre, series, seriesIndex, publisher, language, synopsis, collection, tags) {
         vm.updateBook(
             b.copy(
                 title = title.trim().ifEmpty { b.title },
                 author = author.trim(),
+                genre = genre.trim(),
                 series = series.trim(),
                 seriesIndex = seriesIndex.trim(),
                 publisher = publisher.trim(),
@@ -101,7 +105,28 @@ fun DetailScreen(vm: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(Modifier.fillMaxWidth()) {
-                CoverImage(b, Modifier.width(110.dp).aspectRatio(0.72f))
+                Box(
+                    Modifier
+                        .width(110.dp)
+                        .aspectRatio(0.72f)
+                        .then(
+                            if (b.coverPath == null) Modifier.clickable(enabled = !metaBusy) { vm.fetchMetadata(b, force = true) }
+                            else Modifier
+                        )
+                ) {
+                    CoverImage(b, Modifier.fillMaxSize())
+                    if (b.coverPath == null) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                            Text(
+                                if (metaBusy) "Buscando..." else "Toque para\nbuscar capa",
+                                style = MaterialTheme.typography.labelSmall,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(b.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -129,6 +154,7 @@ fun DetailScreen(vm: AppViewModel) {
 
             OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = author, onValueChange = { author = it }, label = { Text("Autor") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = genre, onValueChange = { genre = it }, label = { Text("Gênero") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = series, onValueChange = { series = it }, label = { Text("Série") }, singleLine = true, modifier = Modifier.weight(1f))
                 OutlinedTextField(value = seriesIndex, onValueChange = { seriesIndex = it }, label = { Text("Nº") }, singleLine = true, modifier = Modifier.width(70.dp))

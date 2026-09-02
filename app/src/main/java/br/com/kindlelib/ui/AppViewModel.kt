@@ -43,8 +43,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val authorFilter = MutableStateFlow<String?>(null)
     val formatFilter = MutableStateFlow<BookFormat?>(null)
     val statusFilter = MutableStateFlow<ReadingStatus?>(null)
+    val transferredFilter = MutableStateFlow<Boolean?>(null)
     val collectionFilter = MutableStateFlow("")
     val sortBy = MutableStateFlow(SortBy.RECENTES)
+
+    val selectedIds = MutableStateFlow<Set<String>>(emptySet())
+
+    private var didInitialScan = false
 
     val scanning = MutableStateFlow(false)
     val metaBusy = MutableStateFlow(false)
@@ -54,7 +59,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val transferProgress = MutableStateFlow<Pair<Int, Int>?>(null)
     val transferDone = MutableStateFlow<String?>(null)
 
-    val screen = MutableStateFlow<Screen>(Screen.Library)
+    val screen = MutableStateFlow<Screen>(
+        if (store.loadSettings().extraFolders.isEmpty()) Screen.Onboarding else Screen.Library
+    )
     val shownBook = MutableStateFlow<Book?>(null)
     val message = MutableStateFlow<String?>(null)
 
@@ -77,8 +84,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onStart(context: Context) {
         refreshUsb()
-        if (hasStorageAccess(context)) scanLibrary()
-        else message.value = "Conceda acesso ao armazenamento para escanear a pasta Downloads"
+        if (!didInitialScan && hasStorageAccess(context) && settings.value.extraFolders.isNotEmpty()) {
+            didInitialScan = true
+            scanLibrary()
+        }
+    }
+
+    fun finishOnboarding(uri: Uri) {
+        addFolder(uri)
+        screen.value = Screen.Library
     }
 
     fun scanLibrary() {
@@ -120,6 +134,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         authorFilter.value?.let { a -> list = list.filter { it.author.equals(a, ignoreCase = true) } }
         formatFilter.value?.let { f -> list = list.filter { it.format == f } }
         statusFilter.value?.let { s -> list = list.filter { it.status == s } }
+        transferredFilter.value?.let { t -> list = list.filter { it.transferred == t } }
         if (collectionFilter.value.isNotEmpty()) {
             val c = collectionFilter.value
             list = list.filter { it.collection.equals(c, ignoreCase = true) }
@@ -135,6 +150,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setQuery(q: String) { query.value = q }
     fun setSort(s: SortBy) { sortBy.value = s }
     fun setStatusFilter(s: ReadingStatus?) { statusFilter.value = s }
+    fun setTransferredFilter(t: Boolean?) { transferredFilter.value = t }
     fun setFormatFilter(f: BookFormat?) { formatFilter.value = f }
     fun setAuthorFilter(a: String?) { authorFilter.value = a }
     fun setCollectionFilter(c: String) { collectionFilter.value = c }
@@ -156,6 +172,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setStatus(b: Book, s: ReadingStatus) { updateBook(b.copy(status = s)) }
+
+    // ---------------- seleção múltipla ----------------
+
+    fun toggleSelect(id: String) {
+        val cur = selectedIds.value.toMutableSet()
+        if (!cur.remove(id)) cur.add(id)
+        selectedIds.value = cur
+    }
+
+    fun startSelection(id: String) { selectedIds.value = setOf(id) }
+
+    fun clearSelection() { selectedIds.value = emptySet() }
+
+    fun bulkDelete() {
+        val ids = selectedIds.value
+        if (ids.isEmpty()) return
+        val toRemove = books.value.filter { it.id in ids }
+        val list = books.value.filter { it.id !in ids }
+        books.value = list
+        store.saveBooks(list)
+        toRemove.forEach { b -> b.coverPath?.let { runCatching { File(it).delete() } } }
+        refreshCollections()
+        message.value = "${ids.size} livro(s) removido(s) da biblioteca"
+        clearSelection()
+    }
+
+    fun bulkMarkTransferred() {
+        val ids = selectedIds.value
+        if (ids.isEmpty()) return
+        val list = books.value.map { if (it.id in ids) it.copy(transferred = true) else it }
+        books.value = list
+        store.saveBooks(list)
+        message.value = "${ids.size} livro(s) marcado(s) como transferido(s)"
+        clearSelection()
+    }
+
+    fun bulkSendToKindle() {
+        val sel = books.value.filter { it.id in selectedIds.value }
+        clearSelection()
+        sendToKindle(sel)
+    }
 
     fun setCoverFromUri(b: Book, uri: Uri) {
         viewModelScope.launch {
@@ -204,6 +261,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (res.series.isNotBlank()) nb = nb.copy(series = res.series, seriesIndex = res.seriesIndex)
                 if (res.publisher.isNotBlank() && nb.publisher.isBlank()) nb = nb.copy(publisher = res.publisher)
                 if (res.language.isNotBlank() && nb.language.isBlank()) nb = nb.copy(language = res.language)
+                if (res.genre.isNotBlank() && nb.genre.isBlank()) nb = nb.copy(genre = res.genre)
                 if (res.coverBytes != null) {
                     val f = File(coversDir, "cover_${b.id}.jpg")
                     withContext(Dispatchers.IO) { f.writeBytes(res.coverBytes!!) }
@@ -287,7 +345,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             var ok = 0
             selected.forEachIndexed { i, b ->
                 val success = withContext(Dispatchers.IO) { kindle.sendToKindle(b, uri) }
-                if (success) ok++
+                if (success) {
+                    ok++
+                    updateBook(b.copy(transferred = true))
+                }
                 transferProgress.value = (i + 1) to selected.size
             }
             transferProgress.value = null

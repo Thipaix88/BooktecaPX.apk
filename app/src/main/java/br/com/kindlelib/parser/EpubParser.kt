@@ -81,6 +81,7 @@ object EpubParser {
             val x = f.newPullParser()
             x.setInput(ByteArrayInputStream(bytes), "UTF-8")
             var inMeta = false
+            var inManifest = false
             var cur: String? = null
             val sb = StringBuilder()
             var savedTitle = false
@@ -104,6 +105,7 @@ object EpubParser {
                 when (event) {
                     XmlPullParser.START_TAG -> when {
                         name == "metadata" -> inMeta = true
+                        name == "manifest" -> inManifest = true
                         inMeta && name == "meta" -> {
                             val n = x.getAttributeValue(null, "name") ?: ""
                             val c = x.getAttributeValue(null, "content") ?: ""
@@ -116,7 +118,7 @@ object EpubParser {
                                 n == "cover" -> meta.coverId = c
                             }
                         }
-                        inMeta && name == "item" -> {
+                        (inMeta || inManifest) && name == "item" -> {
                             if (meta.coverHref.isBlank()) {
                                 val id = x.getAttributeValue(null, "id") ?: ""
                                 val href = x.getAttributeValue(null, "href") ?: ""
@@ -137,6 +139,7 @@ object EpubParser {
                         "title", "creator", "language", "publisher", "description" -> flush()
                         "meta", "item" -> {}
                         "metadata" -> inMeta = false
+                        "manifest" -> inManifest = false
                     }
                 }
                 event = x.next()
